@@ -1,0 +1,88 @@
+### Variables
+@baseUrl = http://localhost:5000/api
+
+### 1. Login User to get Token
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "sarah.connor@example.com",
+  "password": "password123"
+}
+
+###
+
+@authToken = {{login.response.body.token}}
+@workspaceId = {{login.response.body.activeWorkspace.id}}
+
+### 2. Get Workspace Properties to find a Unit ID
+# @name getProperties
+GET {{baseUrl}}/properties
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+
+###
+
+@propertyId = {{getProperties.response.body.data[0].id}}
+
+### 3. Get Property Details to extract a Unit ID
+# @name getPropertyDetails
+GET {{baseUrl}}/properties/{{propertyId}}
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+
+###
+
+@unitId = {{getPropertyDetails.response.body.data.unitGroups[0].units[0].id}}
+
+### 4. Create Tenant Profile
+# @name createTenant
+POST {{baseUrl}}/tenants
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+Content-Type: application/json
+
+{
+  "tenantType": "INDIVIDUAL",
+  "firstName": "Alex",
+  "lastName": "Murphy",
+  "email": "alex.murphy@example.com",
+  "phone": "+1-555-0199",
+  "governmentId": "ID-992031",
+  "emergencyContact": "Anne Lewis (+1-555-0188)",
+  "notes": "Verified tenant, 12-month agreement"
+}
+
+###
+
+@tenantId = {{createTenant.response.body.data.id}}
+
+### 5. Create Active Lease for Unit (Auto-marks Unit as OCCUPIED)
+# @name createLease
+POST {{baseUrl}}/tenants/leases
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+Content-Type: application/json
+
+{
+  "tenantId": "{{tenantId}}",
+  "unitId": "{{unitId}}",
+  "startDate": "2026-09-01",
+  "endDate": "2027-08-31",
+  "rentAmount": 1500,
+  "securityDeposit": 3000,
+  "billingCycle": "MONTHLY",
+  "status": "ACTIVE",
+  "notes": "Standard residential lease agreement"
+}
+
+### 6. List All Tenants
+GET {{baseUrl}}/tenants
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+
+### 7. List All Leases
+GET {{baseUrl}}/tenants/leases
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}

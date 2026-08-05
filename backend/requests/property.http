@@ -1,0 +1,94 @@
+### Variables
+@baseUrl = http://localhost:5000/api
+
+### 1. Register User (Run once for new account)
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Sarah",
+  "lastName": "Connor",
+  "email": "sarah.connor@example.com",
+  "password": "password123",
+  "workspaceName": "Skynet Heights Portfolio"
+}
+
+###
+
+### 2. Login User (Use this to get a fresh token anytime!)
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "sarah.connor@example.com",
+  "password": "password123"
+}
+
+###
+
+@authToken = {{login.response.body.token}}
+@workspaceId = {{login.response.body.activeWorkspace.id}}
+
+### 3. Create Property
+# @name createProperty
+POST {{baseUrl}}/properties
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+Content-Type: application/json
+
+{
+  "name": "Sunset Tower",
+  "description": "Luxury 10-story residential complex",
+  "address": "123 Ocean Drive",
+  "city": "Miami",
+  "country": "USA",
+  "postalCode": "33139",
+  "currency": "USD"
+}
+
+###
+
+@propertyId = {{createProperty.response.body.data.id}}
+
+### 4. List All Properties
+GET {{baseUrl}}/properties
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+
+### 5. Create Unit Group
+# @name createGroup
+POST {{baseUrl}}/properties/{{propertyId}}/groups
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+Content-Type: application/json
+
+{
+  "name": "Floor 1",
+  "description": "Ground floor units",
+  "displayOrder": 1
+}
+
+###
+
+@groupId = {{createGroup.response.body.data.id}}
+
+### 6. Create Unit in Group
+POST {{baseUrl}}/properties/{{propertyId}}/units
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}
+Content-Type: application/json
+
+{
+  "name": "Apt 101",
+  "unitGroupId": "{{groupId}}",
+  "unitTypeName": "2 Bedroom Apartment",
+  "description": "Corner unit with balcony",
+  "status": "VACANT"
+}
+
+### 7. Get Single Property Details (With Groups & Units)
+GET {{baseUrl}}/properties/{{propertyId}}
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}

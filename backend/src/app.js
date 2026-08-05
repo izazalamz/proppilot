@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.routes.js';
+import propertyRoutes from './routes/property.routes.js';
+import tenantRoutes from './routes/tenant.routes.js';
 
 const app = express();
 
@@ -20,7 +22,10 @@ app.get('/api/health', (req, res) => {
 
 // Register API Routes
 app.use('/api/auth', authRoutes);
-
+// Property API Routes
+app.use('/api/properties', propertyRoutes);
+// Tenant API Routes
+app.use('/api/tenants', tenantRoutes);
 
 // Global 404 Handler
 app.use((req, res) => {
