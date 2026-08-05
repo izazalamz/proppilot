@@ -8,4 +8,4 @@ PropPilot is a SaaS platform built for property owners, managers, and tenants.
 
 ## 📂 Project Structure
 - `backend/` - Express API & Prisma database models
-- `frontend/` - React client app
+- `frontend/` - React client app    

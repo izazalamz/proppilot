@@ -1,0 +1,40 @@
+### Variables
+@baseUrl = http://localhost:5000/api
+
+### 1. Health Check
+GET {{baseUrl}}/health
+
+### ------------------------------------------------------------------
+### 2. Register New User & Workspace
+# @name registerUser
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "password": "password123",
+  "workspaceName": "Doe Properties"
+}
+
+### Automatically capture variables from the registration response above
+@authToken = {{registerUser.response.body.token}}
+@workspaceId = {{registerUser.response.body.activeWorkspace.id}}
+
+### ------------------------------------------------------------------
+### 3. Login Existing User
+# @name loginUser
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "john.doe@example.com",
+  "password": "password123"
+}
+
+### ------------------------------------------------------------------
+### 4. Get Current User Profile & Workspaces (Protected Route)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{authToken}}
+x-account-id: {{workspaceId}}

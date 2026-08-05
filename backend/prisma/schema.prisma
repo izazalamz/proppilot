@@ -1,0 +1,488 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. AUTH & WORKSPACE (MULTI-TENANCY)
+// ==========================================
+
+model Account {
+  id          String   @id @default(uuid()) @map("account_id")
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  logoUrl     String?  @map("logo_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  memberships  Membership[]
+  properties   Property[]
+  unitTypes    UnitType[]
+  tenants      Tenant[]
+  chargeTypes  ChargeType[]
+  activityLogs ActivityLog[]
+  documents    Document[]
+
+  @@map("accounts")
+}
+
+model User {
+  id              String   @id @default(uuid()) @map("user_id")
+  firstName       String   @map("first_name") @db.VarChar(100)
+  lastName        String   @map("last_name") @db.VarChar(100)
+  email           String   @unique @db.VarChar(255)
+  passwordHash    String   @map("password_hash") @db.VarChar(255)
+  phone           String?  @db.VarChar(50)
+  isEmailVerified Boolean  @default(false) @map("is_email_verified")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  memberships         Membership[]
+  tenantProfile       Tenant?
+  createdMaintenance  MaintenanceRequest[] @relation("CreatedBy")
+  assignedMaintenance MaintenanceRequest[] @relation("AssignedTo")
+  uploadedDocuments   Document[]
+  announcements       Announcement[]
+  activityLogs        ActivityLog[]
+
+  @@map("users")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  STAFF
+  TENANT
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+model Membership {
+  id        String           @id @default(uuid()) @map("membership_id")
+  accountId String           @map("account_id")
+  userId    String           @map("user_id")
+  role      Role             @default(STAFF)
+  status    MembershipStatus @default(INVITED)
+  joinedAt  DateTime?        @map("joined_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, userId])
+  @@map("memberships")
+}
+
+// ==========================================
+// 2. PROPERTY & SPACE MANAGEMENT
+// ==========================================
+
+enum PropertyStatus {
+  ACTIVE
+  UNDER_MAINTENANCE
+  INACTIVE
+}
+
+model Property {
+  id          String         @id @default(uuid()) @map("property_id")
+  accountId   String         @map("account_id")
+  name        String         @db.VarChar(255)
+  description String?        @db.Text
+  address     String         @db.VarChar(255)
+  city        String         @db.VarChar(100)
+  country     String         @db.VarChar(100)
+  postalCode  String?        @map("postal_code") @db.VarChar(20)
+  status      PropertyStatus @default(ACTIVE)
+
+  currency         String @default("USD") @db.VarChar(10)
+  defaultGraceDays Int    @default(5) @map("default_grace_days")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  unitGroups          UnitGroup[]
+  units               Unit[]
+  maintenanceRequests MaintenanceRequest[]
+  documents           Document[]
+  announcements       Announcement[]
+
+  @@map("properties")
+}
+
+model UnitGroup {
+  id           String   @id @default(uuid()) @map("unit_group_id")
+  propertyId   String   @map("property_id")
+  name         String   @db.VarChar(100)
+  description  String?  @db.Text
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  units    Unit[]
+
+  @@map("unit_groups")
+}
+
+model UnitType {
+  id          String   @id @default(uuid()) @map("unit_type_id")
+  accountId   String   @map("account_id")
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  units   Unit[]
+
+  @@map("unit_types")
+}
+
+enum UnitStatus {
+  VACANT
+  OCCUPIED
+  UNDER_MAINTENANCE
+  RESERVED
+}
+
+model Unit {
+  id          String     @id @default(uuid()) @map("unit_id")
+  propertyId  String     @map("property_id")
+  unitGroupId String?    @map("unit_group_id")
+  unitTypeId  String     @map("unit_type_id")
+  name        String     @db.VarChar(100)
+  description String?    @db.Text
+  status      UnitStatus @default(VACANT)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitGroup UnitGroup? @relation(fields: [unitGroupId], references: [id], onDelete: SetNull)
+  unitType  UnitType   @relation(fields: [unitTypeId], references: [id], onDelete: Restrict)
+
+  leases              Lease[]
+  occupancies         Occupancy[]
+  maintenanceRequests MaintenanceRequest[]
+  announcements       Announcement[]
+
+  @@map("units")
+}
+
+// ==========================================
+// 3. TENANTS & LEASES
+// ==========================================
+
+enum TenantType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+model Tenant {
+  id               String     @id @default(uuid()) @map("tenant_id")
+  accountId        String     @map("account_id")
+  userId           String?    @unique @map("user_id")
+  tenantType       TenantType @default(INDIVIDUAL) @map("tenant_type")
+  firstName        String?    @map("first_name") @db.VarChar(100)
+  lastName         String?    @map("last_name") @db.VarChar(100)
+  businessName     String?    @map("business_name") @db.VarChar(255)
+  email            String     @db.VarChar(255)
+  phone            String     @db.VarChar(50)
+  governmentId     String?    @map("government_id") @db.VarChar(100)
+  emergencyContact String?    @map("emergency_contact") @db.VarChar(255)
+  notes            String?    @db.Text
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  leases              Lease[]
+  occupancies         Occupancy[]
+  maintenanceRequests MaintenanceRequest[]
+  documents           Document[]
+
+  @@map("tenants")
+}
+
+enum LeaseStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Lease {
+  id              String       @id @default(uuid()) @map("lease_id")
+  tenantId        String       @map("tenant_id")
+  unitId          String       @map("unit_id")
+  startDate       DateTime     @map("start_date") @db.Date
+  endDate         DateTime     @map("end_date") @db.Date
+  rentAmount      Decimal      @map("rent_amount") @db.Decimal(12, 2)
+  securityDeposit Decimal      @default(0) @map("security_deposit") @db.Decimal(12, 2)
+  billingCycle    BillingCycle @default(MONTHLY) @map("billing_cycle")
+  gracePeriodDays Int          @default(5) @map("grace_period_days")
+  status          LeaseStatus  @default(DRAFT)
+  notes           String?      @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  invoices    Invoice[]
+  occupancies Occupancy[]
+  documents   Document[]
+
+  @@map("leases")
+}
+
+model Occupancy {
+  id        String    @id @default(uuid()) @map("occupancy_id")
+  unitId    String    @map("unit_id")
+  tenantId  String    @map("tenant_id")
+  leaseId   String    @map("lease_id")
+  moveIn    DateTime  @map("move_in") @db.Date
+  moveOut   DateTime? @map("move_out") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease  Lease  @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@map("occupancies")
+}
+
+// ==========================================
+// 4. BILLING & PAYMENTS
+// ==========================================
+
+model ChargeType {
+  id            String   @id @default(uuid()) @map("charge_type_id")
+  accountId     String   @map("account_id")
+  name          String   @db.VarChar(100)
+  description   String?  @db.Text
+  isRecurring   Boolean  @default(true) @map("is_recurring")
+  defaultAmount Decimal? @map("default_amount") @db.Decimal(12, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  invoiceItems InvoiceItem[]
+
+  @@map("charge_types")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id            String        @id @default(uuid()) @map("invoice_id")
+  leaseId       String        @map("lease_id")
+  invoiceNumber String        @unique @map("invoice_number") @db.VarChar(50)
+  issueDate     DateTime      @map("issue_date") @db.Date
+  dueDate       DateTime      @map("due_date") @db.Date
+  subtotal      Decimal       @db.Decimal(12, 2)
+  discount      Decimal       @default(0) @db.Decimal(12, 2)
+  totalAmount   Decimal       @map("total_amount") @db.Decimal(12, 2)
+  paidAmount    Decimal       @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  status        InvoiceStatus @default(UNPAID)
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id           String  @id @default(uuid()) @map("invoice_item_id")
+  invoiceId    String  @map("invoice_id")
+  chargeTypeId String  @map("charge_type_id")
+  description  String  @db.VarChar(255)
+  quantity     Int     @default(1)
+  unitPrice    Decimal @map("unit_price") @db.Decimal(12, 2)
+  amount       Decimal @db.Decimal(12, 2)
+
+  invoice    Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  chargeType ChargeType @relation(fields: [chargeTypeId], references: [id], onDelete: Restrict)
+
+  @@map("invoice_items")
+}
+
+enum PaymentMethod {
+  CASH
+  SSLCOMMERZ
+  BANK_TRANSFER
+  CHEQUE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Payment {
+  id                   String        @id @default(uuid()) @map("payment_id")
+  invoiceId            String        @map("invoice_id")
+  amount               Decimal       @db.Decimal(12, 2)
+  paymentMethod        PaymentMethod @map("payment_method")
+  paymentDate          DateTime      @default(now()) @map("payment_date")
+  transactionReference String?       @map("transaction_reference") @db.VarChar(255)
+  status               PaymentStatus @default(SUCCESS)
+  remarks              String?       @db.Text
+  createdAt            DateTime      @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ==========================================
+// 5. MAINTENANCE & OPERATIONS
+// ==========================================
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  REQUESTED
+  REVIEWED
+  IN_PROGRESS
+  COMPLETED
+  CLOSED
+}
+
+model MaintenanceRequest {
+  id                 String              @id @default(uuid()) @map("maintenance_request_id")
+  propertyId         String              @map("property_id")
+  unitId             String?             @map("unit_id")
+  tenantId           String?             @map("tenant_id")
+  createdByUserId    String              @map("created_by_user_id")
+  assignedToUserId   String?             @map("assigned_to_user_id")
+  title              String              @db.VarChar(255)
+  problemDescription String              @map("problem_description") @db.Text
+  reviewNotes        String?             @map("review_notes") @db.Text
+  resolutionNotes    String?             @map("resolution_notes") @db.Text
+  category           String              @db.VarChar(100)
+  priority           MaintenancePriority @default(MEDIUM)
+  status             MaintenanceStatus   @default(REQUESTED)
+  requestedAt        DateTime            @default(now()) @map("requested_at")
+  completedAt        DateTime?           @map("completed_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit     Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  tenant   Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  createdBy  User  @relation("CreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignedTo User? @relation("AssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+
+  documents Document[]
+
+  @@map("maintenance_requests")
+}
+
+// ==========================================
+// 6. DOCUMENTS & ANNOUNCEMENTS
+// ==========================================
+
+model Document {
+  id                   String   @id @default(uuid()) @map("document_id")
+  accountId            String   @map("account_id")
+  uploadedByUserId     String   @map("uploaded_by_user_id")
+  propertyId           String?  @map("property_id")
+  leaseId              String?  @map("lease_id")
+  tenantId             String?  @map("tenant_id")
+  maintenanceRequestId String?  @map("maintenance_request_id")
+
+  fileName    String   @map("file_name") @db.VarChar(255)
+  fileUrl     String   @map("file_url") @db.Text
+  fileSize    Int      @map("file_size")
+  mimeType    String   @map("mime_type") @db.VarChar(100)
+  category    String   @db.VarChar(100)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  account            Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  uploadedBy         User                @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  property           Property?           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lease              Lease?              @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  tenant             Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  maintenanceRequest MaintenanceRequest? @relation(fields: [maintenanceRequestId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model Announcement {
+  id              String    @id @default(uuid()) @map("announcement_id")
+  propertyId      String    @map("property_id")
+  unitId          String?   @map("unit_id")
+  createdByUserId String    @map("created_by_user_id")
+  title           String    @db.VarChar(255)
+  message         String    @db.Text
+  isPublished     Boolean   @default(true) @map("is_published")
+  publishedAt     DateTime  @default(now()) @map("published_at")
+  expiresAt       DateTime? @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit      Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  createdBy User     @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@map("announcements")
+}
+
+// ==========================================
+// 7. AUDIT LOGS
+// ==========================================
+
+model ActivityLog {
+  id        String   @id @default(uuid()) @map("activity_log_id")
+  accountId String   @map("account_id")
+  userId    String   @map("user_id")
+  action    String   @db.VarChar(100)
+  entity    String   @db.VarChar(100)
+  entityId  String   @map("entity_id") @db.VarChar(255)
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
