@@ -1,20 +1,55 @@
+// src/services/property.service.js
 import prisma from '../config/db.js';
 
-/**
- * Get all properties for a workspace
- */
 export const getPropertiesByAccount = async (accountId) => {
     return await prisma.property.findMany({
         where: { accountId },
         include: {
+            unitGroups: {
+                include: {
+                    units: true,
+                },
+                orderBy: { displayOrder: 'asc' },
+            },
+            units: {
+                include: {
+                    unitType: true,
+                    unitGroup: true,
+                },
+            },
             _count: {
-                select: { units: true, unitGroups: true },
+                select: {
+                    units: true,
+                    unitGroups: true,
+                },
             },
         },
         orderBy: { createdAt: 'desc' },
     });
 };
 
+/**
+ * Get all units across the workspace with property and group metadata
+ */
+export const getAllUnitsByAccount = async (accountId, { propertyId, groupId } = {}) => {
+    const whereClause = {
+        property: { accountId },
+    };
+
+    if (propertyId) whereClause.propertyId = propertyId;
+    if (groupId) whereClause.unitGroupId = groupId;
+
+    return await prisma.unit.findMany({
+        where: whereClause,
+        include: {
+            property: { select: { id: true, name: true } },
+            unitGroup: { select: { id: true, name: true } },
+            unitType: { select: { id: true, name: true } },
+            leases: { where: { status: 'ACTIVE' } },
+        },
+        orderBy: { name: 'asc' },
+    });
+};
 /**
  * Get single property by ID with unit groups & units
  */
@@ -28,10 +63,10 @@ export const getPropertyById = async (propertyId, accountId) => {
                         include: { unitType: true },
                     },
                 },
+                orderBy: { displayOrder: 'asc' },
             },
             units: {
-                where: { unitGroupId: null }, // Units without a group
-                include: { unitType: true },
+                include: { unitType: true, unitGroup: true },
             },
         },
     });
@@ -101,6 +136,30 @@ export const createUnit = async (accountId, propertyId, data) => {
             name: data.name,
             description: data.description,
             status: data.status || 'VACANT',
+        },
+    });
+};
+export const updateProperty = async (propertyId, accountId, data) => {
+    return await prisma.property.updateMany({
+        where: { id: propertyId, accountId },
+        data: {
+            name: data.name,
+            description: data.description,
+            address: data.address,
+            city: data.city,
+            country: data.country,
+            currency: data.currency,
+            defaultGraceDays: data.defaultGraceDays ? Number(data.defaultGraceDays) : undefined,
+        },
+    });
+};
+
+export const updateUnitGroup = async (groupId, data) => {
+    return await prisma.unitGroup.update({
+        where: { id: groupId },
+        data: {
+            name: data.name,
+            description: data.description,
         },
     });
 };

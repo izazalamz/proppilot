@@ -104,7 +104,7 @@ model Property {
   postalCode  String?        @map("postal_code") @db.VarChar(20)
   status      PropertyStatus @default(ACTIVE)
 
-  currency         String @default("USD") @db.VarChar(10)
+  currency         String @default("BDT") @db.VarChar(10)
   defaultGraceDays Int    @default(5) @map("default_grace_days")
 
   createdAt DateTime @default(now()) @map("created_at")
