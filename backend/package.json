@@ -9,7 +9,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "seed": "prisma db seed",
-    "build": "prisma generate"
+    "build": "npx prisma generate"
   },
   "author": "",
   "license": "ISC",
