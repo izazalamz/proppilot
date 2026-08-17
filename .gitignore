@@ -25,3 +25,7 @@ prisma/migrations/dev.db
 .DS_Store
 .vscode/
 .idea/
+
+# Temp & Artifacts
+repomix-output.*
+*.zip

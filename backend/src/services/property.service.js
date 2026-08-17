@@ -163,3 +163,141 @@ export const updateUnitGroup = async (groupId, data) => {
         },
     });
 };
+
+/**
+ * Get comprehensive 360 overview for a specific Unit
+ */
+export const getUnitOverview = async (accountId, propertyId, unitId) => {
+    const unit = await prisma.unit.findFirst({
+        where: {
+            id: unitId,
+            propertyId: propertyId,
+            property: { accountId },
+        },
+        include: {
+            property: {
+                select: {
+                    id: true,
+                    name: true,
+                    address: true,
+                    city: true,
+                    country: true,
+                    currency: true,
+                    defaultGraceDays: true,
+                },
+            },
+            unitGroup: {
+                select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                },
+            },
+            unitType: {
+                select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                },
+            },
+            leases: {
+                include: {
+                    tenant: true,
+                    invoices: {
+                        include: {
+                            items: {
+                                include: {
+                                    chargeType: true,
+                                },
+                            },
+                            payments: true,
+                        },
+                        orderBy: { issueDate: 'desc' },
+                    },
+                    documents: true,
+                },
+                orderBy: { startDate: 'desc' },
+            },
+            maintenanceRequests: {
+                include: {
+                    createdBy: {
+                        select: { id: true, firstName: true, lastName: true, email: true },
+                    },
+                    assignedTo: {
+                        select: { id: true, firstName: true, lastName: true, email: true },
+                    },
+                    documents: true,
+                },
+                orderBy: { requestedAt: 'desc' },
+            },
+            announcements: {
+                orderBy: { createdAt: 'desc' },
+            },
+        },
+    });
+
+    if (!unit) return null;
+
+    // Calculate aggregated metrics
+    const activeLease = unit.leases.find((l) => l.status === 'ACTIVE') || null;
+    const allInvoices = unit.leases.flatMap((l) => l.invoices || []);
+    const totalInvoiced = allInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+    const totalPaid = allInvoices.reduce((sum, inv) => sum + Number(inv.paidAmount || 0), 0);
+    const outstandingBalance = Math.max(0, totalInvoiced - totalPaid);
+    const openMaintenanceCount = unit.maintenanceRequests.filter(
+        (m) => m.status !== 'COMPLETED' && m.status !== 'CLOSED'
+    ).length;
+
+    // Collect all documents connected to unit leases and maintenance
+    const leaseDocuments = unit.leases.flatMap((l) => l.documents || []);
+    const maintenanceDocuments = unit.maintenanceRequests.flatMap((m) => m.documents || []);
+    const allDocuments = [...leaseDocuments, ...maintenanceDocuments];
+
+    return {
+        ...unit,
+        activeLease,
+        metrics: {
+            totalInvoiced,
+            totalPaid,
+            outstandingBalance,
+            openMaintenanceCount,
+            totalLeasesCount: unit.leases.length,
+            totalDocumentsCount: allDocuments.length,
+        },
+        documents: allDocuments,
+    };
+};
+
+/**
+ * Update a Unit with validation and workspace boundary check
+ */
+export const updateUnit = async (accountId, propertyId, unitId, data) => {
+    const unit = await prisma.unit.findFirst({
+        where: { id: unitId, propertyId, property: { accountId } },
+    });
+
+    if (!unit) throw new Error('Unit not found in this workspace.');
+
+    let unitTypeId = unit.unitTypeId;
+    if (data.unitTypeName) {
+        const unitType = await getOrCreateUnitType(accountId, data.unitTypeName);
+        unitTypeId = unitType.id;
+    }
+
+    return await prisma.unit.update({
+        where: { id: unitId },
+        data: {
+            name: data.name !== undefined ? data.name : undefined,
+            description: data.description !== undefined ? data.description : undefined,
+            status: data.status !== undefined ? data.status : undefined,
+            unitGroupId: data.unitGroupId !== undefined ? (data.unitGroupId || null) : undefined,
+            unitTypeId: unitTypeId,
+        },
+        include: {
+            unitGroup: true,
+            unitType: true,
+            property: true,
+        },
+    });
+};
+

@@ -4,6 +4,18 @@
 
 @layer base {
     body {
-        @apply bg-slate-100 text-slate-900 antialiased;
+        @apply bg-slate-100 text-slate-900 antialiased selection:bg-sky-500 selection:text-white;
+        -webkit-tap-highlight-color: transparent;
+    }
+}
+
+@layer utilities {
+    /* Hide scrollbars while preserving touch and trackpad scrolling */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
     }
 }

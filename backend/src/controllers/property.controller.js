@@ -5,6 +5,8 @@ import {
     createProperty,
     createUnitGroup,
     createUnit,
+    getUnitOverview,
+    updateUnit,
 } from '../services/property.service.js';
 
 const propertySchema = z.object({
@@ -29,6 +31,14 @@ const unitSchema = z.object({
     unitGroupId: z.string().optional(),
     unitTypeName: z.string().optional(),
     description: z.string().optional(),
+    status: z.enum(['VACANT', 'OCCUPIED', 'UNDER_MAINTENANCE', 'RESERVED']).optional(),
+});
+
+const updateUnitSchema = z.object({
+    name: z.string().min(1, 'Unit name/number is required').optional(),
+    unitGroupId: z.string().nullable().optional(),
+    unitTypeName: z.string().optional(),
+    description: z.string().nullable().optional(),
     status: z.enum(['VACANT', 'OCCUPIED', 'UNDER_MAINTENANCE', 'RESERVED']).optional(),
 });
 
@@ -91,3 +101,30 @@ export const handleCreateUnit = async (req, res, next) => {
         next(error);
     }
 };
+
+export const getSingleUnitOverview = async (req, res, next) => {
+    try {
+        const { propertyId, unitId } = req.params;
+        const overview = await getUnitOverview(req.accountId, propertyId, unitId);
+        if (!overview) {
+            return res.status(404).json({ error: 'Unit not found' });
+        }
+        return res.status(200).json({ data: overview });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const handleUpdateUnit = async (req, res, next) => {
+    try {
+        const { propertyId, unitId } = req.params;
+        const validated = updateUnitSchema.parse(req.body);
+        const updated = await updateUnit(req.accountId, propertyId, unitId, validated);
+        return res.status(200).json({ message: 'Unit updated successfully', data: updated });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ error: error.errors[0].message });
+        }
+        next(error);
+    }
+};

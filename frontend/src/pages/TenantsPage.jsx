@@ -239,41 +239,98 @@ export default function TenantsPage() {
         return matchesSearch && matchesStatus;
     });
 
+    const activeLeasesCount = leases.filter((l) => l.status === 'ACTIVE').length;
+    const contractedMonthlyRent = leases
+        .filter((l) => l.status === 'ACTIVE')
+        .reduce((acc, l) => acc + Number(l.rentAmount), 0);
+    const pendingLeasesCount = leases.filter((l) => l.status === 'PENDING' || l.status === 'EXPIRED').length;
+
     const summaryStats = [
         { label: 'Total Tenants', value: tenants.length },
-        { label: 'Active Leases', value: leases.filter((l) => l.status === 'ACTIVE').length },
-        { label: 'Pending Drafts', value: leases.filter((l) => l.status === 'DRAFT').length },
-        { label: 'Total Monthly Rent', value: `$${leases.filter((l) => l.status === 'ACTIVE').reduce((sum, l) => sum + Number(l.rentAmount), 0).toLocaleString()}` },
+        { label: 'Active Leases', value: activeLeasesCount },
+        { label: 'Monthly Rent', value: `$${contractedMonthlyRent.toLocaleString()}` },
+        { label: 'Pending Leases', value: pendingLeasesCount },
     ];
 
     return (
-        <div className="flex h-[calc(100vh-5rem)] overflow-hidden -m-6">
-            {/* MAIN WORKSPACE AREA */}
-            <div className="flex-1 flex flex-col min-w-0 bg-slate-50/50 p-6 overflow-y-auto space-y-6">
 
-                {/* WORKSPACE HEADER */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+        <div className="flex h-full w-full overflow-hidden">
+            {/* MAIN WORKSPACE AREA */}
+            <div className="flex-1 flex flex-col min-w-0 bg-slate-50/50 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
+
+
+                {/* LEVEL 1 WORKSPACE HEADER */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h3 className="text-2xl font-bold text-slate-800 tracking-tight">Tenants & Leases Workspace</h3>
-                        <p className="text-sm text-slate-500">Manage occupants, rental contracts, and space assignments</p>
+                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+                            <Users className="w-7 h-7 text-sky-600" />
+                            Tenants & Leases Workspace
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Manage tenant directory profiles, rental lease contracts, space assignments, and occupancy agreements.
+                        </p>
                     </div>
 
-                    {activeTab !== 'tree' && (
+                    <div className="flex items-center gap-2.5 flex-wrap">
                         <button
-                            onClick={() => setShowInlineForm(!showInlineForm)}
-                            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all shrink-0"
+                            onClick={() => {
+                                setActiveTab('tenants');
+                                setShowInlineForm(true);
+                            }}
+                            className="flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                         >
-                            {showInlineForm ? <ChevronDown className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                            {showInlineForm ? 'Cancel' : activeTab === 'tenants' ? '+ Add Tenant' : '+ Draft Lease'}
+                            <Users className="w-4 h-4 text-slate-600" />
+                            <span>Add Tenant Profile</span>
                         </button>
-                    )}
+
+                        <button
+                            onClick={() => {
+                                setActiveTab('leases');
+                                setShowInlineForm(true);
+                            }}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all shrink-0 cursor-pointer active:scale-95"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Draft Lease Agreement</span>
+                        </button>
+
+                    </div>
+                </div>
+
+                {/* TOP OPERATIONAL KPI CARDS */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Tenants</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-slate-900">{tenants.length}</p>
+                        <span className="text-[11px] text-slate-500 block">Registered occupant profiles</span>
+                    </div>
+
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">Active Leases</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-emerald-600">{activeLeasesCount}</p>
+                        <span className="text-[11px] text-emerald-700 font-semibold block">Occupied legal contracts</span>
+                    </div>
+
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 block">Monthly Contracted</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-sky-600">${contractedMonthlyRent.toLocaleString()}</p>
+                        <span className="text-[11px] text-sky-700 block">Recurring monthly rent</span>
+                    </div>
+
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 block">Pending & Expired</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-amber-600">{pendingLeasesCount}</p>
+                        <span className="text-[11px] text-amber-700 block">Renewal / review queue</span>
+                    </div>
                 </div>
 
                 {/* CONTEXTUAL INLINE CREATION PANEL */}
                 {showInlineForm && activeTab !== 'tree' && (
-                    <div className="bg-white border border-sky-200 rounded-2xl p-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-200">
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-5 animate-in fade-in slide-in-from-top-4 duration-200">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-                            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <Users className="w-4 h-4 text-slate-800" />
                                 {activeTab === 'tenants' ? 'Create New Tenant Profile' : 'Draft New Lease Agreement'}
                             </h4>
                             <button type="button" onClick={() => setShowInlineForm(false)} className="text-slate-400 hover:text-slate-600">
@@ -289,7 +346,7 @@ export default function TenantsPage() {
                                         <select
                                             value={tenantForm.tenantType}
                                             onChange={(e) => setTenantForm({ ...tenantForm, tenantType: e.target.value })}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white"
                                         >
                                             <option value="INDIVIDUAL">INDIVIDUAL</option>
                                             <option value="BUSINESS">BUSINESS ENTITY</option>
@@ -306,7 +363,7 @@ export default function TenantsPage() {
                                                     value={tenantForm.firstName}
                                                     onChange={(e) => setTenantForm({ ...tenantForm, firstName: e.target.value })}
                                                     placeholder="Alex"
-                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                                 />
                                             </div>
                                             <div>
@@ -317,7 +374,7 @@ export default function TenantsPage() {
                                                     value={tenantForm.lastName}
                                                     onChange={(e) => setTenantForm({ ...tenantForm, lastName: e.target.value })}
                                                     placeholder="Murphy"
-                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                                 />
                                             </div>
                                         </>
@@ -330,7 +387,7 @@ export default function TenantsPage() {
                                                 value={tenantForm.businessName}
                                                 onChange={(e) => setTenantForm({ ...tenantForm, businessName: e.target.value })}
                                                 placeholder="Acme Logistics LLC"
-                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                             />
                                         </div>
                                     )}
@@ -345,7 +402,7 @@ export default function TenantsPage() {
                                             value={tenantForm.email}
                                             onChange={(e) => setTenantForm({ ...tenantForm, email: e.target.value })}
                                             placeholder="alex@example.com"
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                         />
                                     </div>
                                     <div>
@@ -356,31 +413,34 @@ export default function TenantsPage() {
                                             value={tenantForm.phone}
                                             onChange={(e) => setTenantForm({ ...tenantForm, phone: e.target.value })}
                                             placeholder="+1-555-0199"
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Government ID</label>
+                                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">National ID / Passport</label>
                                         <input
                                             type="text"
-                                            value={tenantForm.governmentId}
-                                            onChange={(e) => setTenantForm({ ...tenantForm, governmentId: e.target.value })}
-                                            placeholder="ID-992031"
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            value={tenantForm.nidOrPassport}
+                                            onChange={(e) => setTenantForm({ ...tenantForm, nidOrPassport: e.target.value })}
+                                            placeholder="NID-992837102"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end gap-3 pt-2">
+                                <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                                     <button
                                         type="button"
                                         onClick={() => setShowInlineForm(false)}
-                                        className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl"
+                                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                                     >
                                         Discard
                                     </button>
-                                    <button type="submit" className="px-5 py-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-sm">
-                                        Save Tenant Profile
+                                    <button
+                                        type="submit"
+                                        className="px-5 py-2 text-xs font-bold bg-slate-950 hover:bg-slate-800 text-white rounded-xl shadow-md cursor-pointer active:scale-95 transition-all"
+                                    >
+                                        Register Tenant
                                     </button>
                                 </div>
                             </form>
@@ -388,31 +448,31 @@ export default function TenantsPage() {
                             <form onSubmit={handleCreateLease} className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Tenant Party</label>
+                                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Select Occupant Tenant</label>
                                         <select
                                             required
                                             value={leaseForm.tenantId}
                                             onChange={(e) => setLeaseForm({ ...leaseForm, tenantId: e.target.value })}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white"
                                         >
-                                            <option value="">-- Select Tenant --</option>
+                                            <option value="">-- Choose Resident Profile --</option>
                                             {tenants.map((t) => (
                                                 <option key={t.id} value={t.id}>
-                                                    {t.tenantType === 'BUSINESS' ? t.businessName : `${t.firstName} ${t.lastName}`} ({t.email})
+                                                    {t.firstName ? `${t.firstName} ${t.lastName}` : t.businessName} ({t.email})
                                                 </option>
                                             ))}
                                         </select>
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Assigned Space (Property → Group → Unit)</label>
+                                        <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Select Space (Unit)</label>
                                         <select
                                             required
                                             value={leaseForm.unitId}
                                             onChange={(e) => setLeaseForm({ ...leaseForm, unitId: e.target.value })}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900 bg-white"
                                         >
-                                            <option value="">-- Select Space --</option>
+                                            <option value="">-- Choose Unit --</option>
                                             {availableUnits.map((u) => (
                                                 <option key={u.id} value={u.id}>
                                                     {u.propertyName} → {u.unitGroup?.name || 'No Group'} → {u.name} ({u.status})
@@ -430,7 +490,7 @@ export default function TenantsPage() {
                                             required
                                             value={leaseForm.startDate}
                                             onChange={(e) => setLeaseForm({ ...leaseForm, startDate: e.target.value })}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                         />
                                     </div>
                                     <div>
@@ -440,7 +500,7 @@ export default function TenantsPage() {
                                             required
                                             value={leaseForm.endDate}
                                             onChange={(e) => setLeaseForm({ ...leaseForm, endDate: e.target.value })}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                         />
                                     </div>
                                     <div>
@@ -451,7 +511,7 @@ export default function TenantsPage() {
                                             value={leaseForm.rentAmount}
                                             onChange={(e) => setLeaseForm({ ...leaseForm, rentAmount: e.target.value })}
                                             placeholder="1800"
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                         />
                                     </div>
                                     <div>
@@ -461,20 +521,23 @@ export default function TenantsPage() {
                                             value={leaseForm.securityDeposit}
                                             onChange={(e) => setLeaseForm({ ...leaseForm, securityDeposit: e.target.value })}
                                             placeholder="3600"
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-900"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end gap-3 pt-2">
+                                <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                                     <button
                                         type="button"
                                         onClick={() => setShowInlineForm(false)}
-                                        className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl"
+                                        className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                                     >
                                         Discard
                                     </button>
-                                    <button type="submit" className="px-5 py-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-sm">
+                                    <button
+                                        type="submit"
+                                        className="px-5 py-2 text-xs font-bold bg-slate-950 hover:bg-slate-800 text-white rounded-xl shadow-md cursor-pointer active:scale-95 transition-all"
+                                    >
                                         Activate Lease Agreement
                                     </button>
                                 </div>
@@ -484,34 +547,38 @@ export default function TenantsPage() {
                 )}
 
                 {/* LEVEL 2 TAB NAVIGATION (3 Sub-Tabs) */}
-                <div className="border-b border-slate-200 flex gap-8 overflow-x-auto">
+                <div className="flex border-b border-slate-200 gap-4 sm:gap-6 text-xs font-bold overflow-x-auto no-scrollbar whitespace-nowrap">
+
                     <button
                         onClick={() => {
                             setActiveTab('tenants');
                             setShowInlineForm(false);
                         }}
-                        className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'tenants' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                            }`}
+                        className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                            activeTab === 'tenants' ? 'border-slate-950 text-slate-950' : 'border-transparent text-slate-500 hover:text-slate-900'
+                        }`}
                     >
-                        <Users className="w-4 h-4" /> Tenants Directory
+                        <Users className="w-4 h-4" /> Tenants Directory ({tenants.length})
                     </button>
                     <button
                         onClick={() => {
                             setActiveTab('leases');
                             setShowInlineForm(false);
                         }}
-                        className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'leases' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                            }`}
+                        className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                            activeTab === 'leases' ? 'border-slate-950 text-slate-950' : 'border-transparent text-slate-500 hover:text-slate-900'
+                        }`}
                     >
-                        <FileText className="w-4 h-4" /> Lease Agreements
+                        <FileText className="w-4 h-4" /> Lease Agreements ({leases.length})
                     </button>
                     <button
                         onClick={() => {
                             setActiveTab('tree');
                             setShowInlineForm(false);
                         }}
-                        className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'tree' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                            }`}
+                        className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                            activeTab === 'tree' ? 'border-slate-950 text-slate-950' : 'border-transparent text-slate-500 hover:text-slate-900'
+                        }`}
                     >
                         <Building2 className="w-4 h-4" /> Property Occupancy Hierarchy
                     </button>
@@ -520,25 +587,24 @@ export default function TenantsPage() {
                 {/* SUB-TAB 1: TENANTS DIRECTORY */}
                 {activeTab === 'tenants' && (
                     <div className="space-y-4">
-                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
                             <div className="relative w-full md:w-72">
-                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                                 <input
                                     type="text"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     placeholder="Search tenants..."
-                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800"
+                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                                 />
                             </div>
 
-                            <div className="flex items-center gap-1.5 w-full md:w-auto">
-                                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+                            <div className="flex items-center gap-2 w-full md:w-auto">
                                 <span className="text-xs font-semibold text-slate-500 uppercase">Group By:</span>
                                 <select
                                     value={groupByMode}
                                     onChange={(e) => setGroupByMode(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 text-xs rounded-lg py-2 px-3 cursor-pointer"
+                                    className="bg-slate-50 border border-slate-200 text-xs rounded-xl py-2 px-3 cursor-pointer"
                                 >
                                     <option value="none">Flat List</option>
                                     <option value="property">Group by Property</option>
@@ -547,24 +613,25 @@ export default function TenantsPage() {
                             </div>
                         </div>
 
+
                         {loading ? (
                             <TableSkeleton rows={6} cols={5} />
                         ) : (
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                                <table className="w-full text-left text-xs text-slate-600">
-                                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                                <table className="w-full text-left text-xs text-slate-700">
+                                    <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
                                         <tr>
-                                            <th className="p-3.5">Tenant Name / Party</th>
-                                            <th className="p-3.5">Contact Email</th>
-                                            <th className="p-3.5">Phone</th>
-                                            <th className="p-3.5">Leased Space (Property → Group → Unit)</th>
-                                            <th className="p-3.5 text-right">Inspect</th>
+                                            <th className="p-4">Tenant Name / Party</th>
+                                            <th className="p-4">Contact Email</th>
+                                            <th className="p-4">Phone Number</th>
+                                            <th className="p-4">Assigned Space (Property → Group → Unit)</th>
+                                            <th className="p-4 text-right">Inspect</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {filteredTenants.length === 0 ? (
                                             <tr>
-                                                <td colSpan={5} className="p-6 text-center text-slate-400 italic">
+                                                <td colSpan={5} className="p-8 text-center text-slate-400 italic">
                                                     No tenants found matching criteria.
                                                 </td>
                                             </tr>
@@ -572,8 +639,8 @@ export default function TenantsPage() {
                                             getGroupedTenants().map((section) => (
                                                 <React.Fragment key={section.key}>
                                                     {section.title && (
-                                                        <tr className="bg-slate-100/80 border-y border-slate-200">
-                                                            <td colSpan={5} className="py-2 px-3.5 font-bold text-slate-700 uppercase tracking-wide text-[11px]">
+                                                        <tr className="bg-slate-100/70 border-y border-slate-200">
+                                                            <td colSpan={5} className="py-2.5 px-4 font-bold text-slate-800 uppercase tracking-wide text-[10px]">
                                                                 {section.title} ({section.items.length})
                                                             </td>
                                                         </tr>
@@ -595,23 +662,29 @@ export default function TenantsPage() {
                                                                     setDrawerEditForm(tenant);
                                                                     setIsEditing(false);
                                                                 }}
-                                                                className={`hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-sky-50/50 font-medium' : ''
-                                                                    }`}
+                                                                className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${
+                                                                    isSelected ? 'bg-slate-100/70 font-semibold' : ''
+                                                                }`}
                                                             >
-                                                                <td className="p-3.5 font-bold text-slate-800 flex items-center gap-2">
-                                                                    {tenant.tenantType === 'BUSINESS' ? (
-                                                                        <Briefcase className="w-4 h-4 text-sky-600 shrink-0" />
-                                                                    ) : (
-                                                                        <User className="w-4 h-4 text-slate-400 shrink-0" />
-                                                                    )}
-                                                                    {fullName}
+                                                                <td className="p-4 font-bold text-slate-900 flex items-center gap-3">
+                                                                    <div className="w-8 h-8 rounded-full bg-slate-950 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                                                                        {fullName[0]?.toUpperCase() || 'T'}
+                                                                    </div>
+                                                                    <div>
+                                                                        <span>{fullName}</span>
+                                                                        <span className="block text-[10px] font-normal text-slate-400">
+                                                                            {tenant.tenantType}
+                                                                        </span>
+                                                                    </div>
                                                                 </td>
-                                                                <td className="p-3.5 text-slate-600">{tenant.email}</td>
-                                                                <td className="p-3.5 text-slate-600">{tenant.phone}</td>
-                                                                <td className="p-3.5 text-slate-700 font-medium">
+                                                                <td className="p-4 text-slate-600 font-mono text-xs">{tenant.email}</td>
+                                                                <td className="p-4 text-slate-600">{tenant.phone}</td>
+                                                                <td className="p-4 text-slate-800 font-medium">
                                                                     {formatSpaceBreadcrumb(activeLease?.unit)}
                                                                 </td>
-                                                                <td className="p-3.5 text-right font-medium text-sky-600">Inspect →</td>
+                                                                <td className="p-4 text-right font-bold text-slate-900 text-xs hover:underline">
+                                                                    Inspect 360° →
+                                                                </td>
                                                             </tr>
                                                         );
                                                     })}
@@ -628,15 +701,15 @@ export default function TenantsPage() {
                 {/* SUB-TAB 2: LEASE AGREEMENTS */}
                 {activeTab === 'leases' && (
                     <div className="space-y-4">
-                        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
                             <div className="relative w-full md:w-72">
-                                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                                 <input
                                     type="text"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     placeholder="Search leases..."
-                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800"
+                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
                                 />
                             </div>
 
@@ -645,7 +718,7 @@ export default function TenantsPage() {
                                 <select
                                     value={leaseStatusFilter}
                                     onChange={(e) => setLeaseStatusFilter(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 text-xs rounded-lg py-2 px-3 cursor-pointer"
+                                    className="bg-slate-50 border border-slate-200 text-xs rounded-xl py-2 px-3 cursor-pointer"
                                 >
                                     <option value="ALL">All Statuses</option>
                                     <option value="ACTIVE">ACTIVE</option>
@@ -659,22 +732,22 @@ export default function TenantsPage() {
                         {loading ? (
                             <TableSkeleton rows={6} cols={6} />
                         ) : (
-                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                                <table className="w-full text-left text-xs text-slate-600">
-                                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                                <table className="w-full text-left text-xs text-slate-700">
+                                    <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-200">
                                         <tr>
-                                            <th className="p-3.5">Tenant Party</th>
-                                            <th className="p-3.5">Assigned Space (Property → Group → Unit)</th>
-                                            <th className="p-3.5">Monthly Rent</th>
-                                            <th className="p-3.5">Duration</th>
-                                            <th className="p-3.5">Status</th>
-                                            <th className="p-3.5 text-right">Inspect</th>
+                                            <th className="p-4">Tenant Party</th>
+                                            <th className="p-4">Assigned Space (Property → Group → Unit)</th>
+                                            <th className="p-4">Monthly Rent</th>
+                                            <th className="p-4">Duration</th>
+                                            <th className="p-4">Status</th>
+                                            <th className="p-4 text-right">Inspect</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {filteredLeases.length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="p-6 text-center text-slate-400 italic">
+                                                <td colSpan={6} className="p-8 text-center text-slate-400 italic">
                                                     No lease agreements found.
                                                 </td>
                                             </tr>
@@ -694,32 +767,38 @@ export default function TenantsPage() {
                                                             setDrawerEditForm(lease);
                                                             setIsEditing(false);
                                                         }}
-                                                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-sky-50/50 font-medium' : ''
-                                                            }`}
+                                                        className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${
+                                                            isSelected ? 'bg-slate-100/70 font-semibold' : ''
+                                                        }`}
                                                     >
-                                                        <td className="p-3.5 font-bold text-slate-800">{tenantName}</td>
-                                                        <td className="p-3.5 text-slate-700 font-medium">
+                                                        <td className="p-4 font-bold text-slate-900">{tenantName}</td>
+                                                        <td className="p-4 text-slate-800 font-medium">
                                                             {formatSpaceBreadcrumb(lease.unit)}
                                                         </td>
-                                                        <td className="p-3.5 font-bold text-emerald-600">
-                                                            ${Number(lease.rentAmount).toLocaleString()}/mo
+                                                        <td className="p-4 font-extrabold text-slate-900">
+                                                            ${Number(lease.rentAmount)?.toLocaleString()}
+                                                            <span className="text-[10px] font-normal text-slate-400">/mo</span>
                                                         </td>
-                                                        <td className="p-3.5 text-slate-500">
-                                                            {new Date(lease.startDate).toLocaleDateString()} → {new Date(lease.endDate).toLocaleDateString()}
+                                                        <td className="p-4 text-slate-500 font-medium">
+                                                            {new Date(lease.startDate).toLocaleDateString()} –{' '}
+                                                            {new Date(lease.endDate).toLocaleDateString()}
                                                         </td>
-                                                        <td className="p-3.5">
+                                                        <td className="p-4">
                                                             <span
-                                                                className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full ${lease.status === 'ACTIVE'
-                                                                    ? 'bg-emerald-100 text-emerald-700'
-                                                                    : lease.status === 'DRAFT'
-                                                                        ? 'bg-amber-100 text-amber-700'
-                                                                        : 'bg-slate-100 text-slate-600'
-                                                                    }`}
+                                                                className={`px-2.5 py-0.5 text-[10px] font-bold uppercase rounded-full border ${
+                                                                    lease.status === 'ACTIVE'
+                                                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                                                        : lease.status === 'DRAFT'
+                                                                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                                                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                                                                }`}
                                                             >
                                                                 {lease.status}
                                                             </span>
                                                         </td>
-                                                        <td className="p-3.5 text-right font-medium text-sky-600">Inspect →</td>
+                                                        <td className="p-4 text-right font-bold text-slate-900 text-xs hover:underline">
+                                                            Inspect 360° →
+                                                        </td>
                                                     </tr>
                                                 );
                                             })
@@ -850,7 +929,9 @@ export default function TenantsPage() {
                 onSave={handleSaveEdit}
                 summaryTitle="Tenants & Leases Overview"
                 summaryStats={summaryStats}
+                customWidth="w-full sm:w-[480px] lg:w-[480px] xl:w-[520px]"
                 editFormContent={
+
                     selectedItem?.type === 'TENANT' ? (
                         <div className="space-y-3">
                             <div>
@@ -896,6 +977,42 @@ export default function TenantsPage() {
                             </p>
                         </div>
 
+                        {/* If Tenant has Active Lease, Show Interactive Apartment Card */}
+                        {(() => {
+                            const activeLease = selectedItem.data.leases?.find((l) => l.status === 'ACTIVE');
+                            if (!activeLease) return null;
+                            const targetUnitId = activeLease.unitId || activeLease.unit?.id;
+                            return (
+                                <div
+                                    onClick={() => {
+                                        if (targetUnitId) {
+                                            navigate(`/properties?tab=units&unitId=${encodeURIComponent(targetUnitId)}`);
+                                        }
+                                    }}
+                                    className="group p-3.5 bg-gradient-to-br from-sky-50/80 to-sky-100/50 hover:from-sky-100 hover:to-sky-200/60 border border-sky-200 rounded-2xl space-y-2 cursor-pointer transition-all hover:shadow-md active:scale-[0.99]"
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
+                                            <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                                            Active Leased Apartment
+                                        </span>
+                                        <span className="text-[10px] font-bold text-sky-700 bg-white/90 group-hover:bg-white px-2 py-0.5 rounded-full border border-sky-200 flex items-center gap-1 shadow-2xs">
+                                            Properties <ExternalLink className="w-3 h-3" />
+                                        </span>
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-900 group-hover:text-sky-900 transition-colors">
+                                        {formatSpaceBreadcrumb(activeLease.unit)}
+                                    </p>
+                                    <div className="flex items-center justify-between text-[11px] text-sky-700/80 pt-1 border-t border-sky-200/60">
+                                        <span>Rent: ${Number(activeLease.rentAmount).toLocaleString()}/mo</span>
+                                        <span className="font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                            Go to Apartment →
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         <div className="grid grid-cols-2 gap-3">
                             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Email</span>
@@ -929,11 +1046,39 @@ export default function TenantsPage() {
                                     ? selectedItem.data.tenant?.businessName
                                     : `${selectedItem.data.tenant?.firstName || ''} ${selectedItem.data.tenant?.lastName || ''}`}
                             </p>
+                            <p className="text-xs text-slate-500">{selectedItem.data.tenant?.email}</p>
                         </div>
 
-                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Assigned Space Hierarchy</span>
-                            <p className="text-xs font-bold text-sky-700">{formatSpaceBreadcrumb(selectedItem.data.unit)}</p>
+                        {/* INTERACTIVE APARTMENT / ASSIGNED SPACE HIERARCHY CARD */}
+                        <div
+                            onClick={() => {
+                                const targetUnitId = selectedItem.data.unitId || selectedItem.data.unit?.id;
+                                if (targetUnitId) {
+                                    navigate(`/properties?tab=units&unitId=${encodeURIComponent(targetUnitId)}`);
+                                }
+                            }}
+                            className="group p-3.5 bg-gradient-to-br from-sky-50/80 to-sky-100/50 hover:from-sky-100 hover:to-sky-200/60 border border-sky-200 rounded-2xl space-y-2 cursor-pointer transition-all hover:shadow-md active:scale-[0.99]"
+                        >
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
+                                    <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                                    Assigned Space Hierarchy
+                                </span>
+                                <span className="text-[10px] font-bold text-sky-700 bg-white/90 group-hover:bg-white px-2 py-0.5 rounded-full border border-sky-200 flex items-center gap-1 shadow-2xs">
+                                    Properties <ExternalLink className="w-3 h-3" />
+                                </span>
+                            </div>
+
+                            <p className="text-sm font-extrabold text-slate-900 group-hover:text-sky-900 transition-colors">
+                                {formatSpaceBreadcrumb(selectedItem.data.unit)}
+                            </p>
+
+                            <div className="flex items-center justify-between text-[11px] text-sky-700/80 pt-1 border-t border-sky-200/60">
+                                <span>Unit ID: {selectedItem.data.unit?.id?.slice(0, 8)}...</span>
+                                <span className="font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                                    Inspect Apartment →
+                                </span>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -953,8 +1098,25 @@ export default function TenantsPage() {
                                 {new Date(selectedItem.data.startDate).toLocaleDateString()} → {new Date(selectedItem.data.endDate).toLocaleDateString()}
                             </p>
                         </div>
+
+                        {/* PROMINENT JUMP-TO-APARTMENT ACTION BUTTON */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const targetUnitId = selectedItem.data.unitId || selectedItem.data.unit?.id;
+                                if (targetUnitId) {
+                                    navigate(`/properties?tab=units&unitId=${encodeURIComponent(targetUnitId)}`);
+                                }
+                            }}
+                            className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-950 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer active:scale-95 group"
+                        >
+                            <Building2 className="w-4 h-4 text-sky-400" />
+                            <span>Inspect Apartment in Properties Page</span>
+                            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                        </button>
                     </div>
                 )}
+
 
                 {/* VIEW MODE DETAILS: UNIT (Clicked from Hierarchy Tree) */}
                 {selectedItem?.type === 'UNIT' && (
@@ -1026,17 +1188,18 @@ export default function TenantsPage() {
                             </div>
                         )}
 
-                        {/* ACTION BUTTON: MOVE TO LEASE AGREEMENTS FOR UNIT HISTORY */}
+                        {/* ACTION BUTTON: DIRECT DEEP-LINK TO UNIT 360 OPERATIONAL HUB */}
                         <button
                             onClick={() => {
-                                navigate(`/tenants?tab=leases&search=${encodeURIComponent(selectedItem.data.name)}`);
+                                navigate(`/properties?tab=units&unitId=${encodeURIComponent(selectedItem.data.id)}`);
                             }}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+                            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
                         >
-                            <span>View Lease History for {selectedItem.data.name}</span>
+                            <span>Open Unit 360° Command Center</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                     </div>
+
                 )}
             </PersistentDrawer>
         </div>

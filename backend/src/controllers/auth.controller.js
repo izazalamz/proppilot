@@ -99,6 +99,8 @@ export const getMe = async (req, res, next) => {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 email: user.email,
+                phone: user.phone,
+                createdAt: user.createdAt,
             },
             workspaces: user.memberships.map((m) => ({
                 id: m.account.id,
@@ -111,3 +113,77 @@ export const getMe = async (req, res, next) => {
         next(error);
     }
 };
+
+const updateProfileSchema = z.object({
+    firstName: z.string().min(1, 'First name is required'),
+    lastName: z.string().min(1, 'Last name is required'),
+    phone: z.string().optional().nullable(),
+});
+
+export const updateProfile = async (req, res, next) => {
+    try {
+        const validatedData = updateProfileSchema.parse(req.body);
+        const updatedUser = await prisma.user.update({
+            where: { id: req.user.id },
+            data: {
+                firstName: validatedData.firstName,
+                lastName: validatedData.lastName,
+                phone: validatedData.phone || null,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                createdAt: true,
+            },
+        });
+
+        return res.status(200).json({
+            message: 'Profile updated successfully!',
+            user: updatedUser,
+        });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ error: error.errors[0].message });
+        }
+        next(error);
+    }
+};
+
+const changePasswordSchema = z.object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+});
+
+export const changePassword = async (req, res, next) => {
+    try {
+        const validatedData = changePasswordSchema.parse(req.body);
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const isCurrentValid = await bcrypt.compare(validatedData.currentPassword, user.passwordHash);
+        if (!isCurrentValid) {
+            return res.status(400).json({ error: 'Incorrect current password.' });
+        }
+
+        const newHash = await bcrypt.hash(validatedData.newPassword, 10);
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { passwordHash: newHash },
+        });
+
+        return res.status(200).json({ message: 'Password updated successfully!' });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ error: error.errors[0].message });
+        }
+        next(error);
+    }
+};

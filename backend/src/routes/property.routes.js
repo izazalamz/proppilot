@@ -4,7 +4,9 @@ import {
     getSingleProperty,
     handleCreateProperty,
     handleCreateUnitGroup,
-    handleCreateUnit
+    handleCreateUnit,
+    getSingleUnitOverview,
+    handleUpdateUnit,
 } from '../controllers/property.controller.js';
 import { updateProperty, updateUnitGroup } from '../services/property.service.js';
 import { authenticate, requireWorkspace } from '../middlewares/auth.js';
@@ -39,6 +41,9 @@ router.put('/:propertyId/groups/:groupId', async (req, res, next) => {
     }
 });
 
+// Unit routes
 router.post('/:propertyId/units', handleCreateUnit);
+router.get('/:propertyId/units/:unitId/overview', getSingleUnitOverview);
+router.put('/:propertyId/units/:unitId', handleUpdateUnit);
 
-export default router;
+export default router;

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
 import PersistentDrawer from '../components/common/PersistentDrawer';
 import TableSkeleton from '../components/common/TableSkeleton';
-import { useNavigate } from 'react-router-dom';
+import Unit360Drawer from '../components/properties/Unit360Drawer';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import {
     Building2,
@@ -32,11 +33,17 @@ import {
 
 export default function PropertiesPage() {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+
     // Level 2 Tab Context: 'portfolio' | 'groups' | 'units'
     const [activeTab, setActiveTab] = useState('portfolio');
     const [properties, setProperties] = useState([]);
     const [leases, setLeases] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Unit 360 State
+    const [unit360Data, setUnit360Data] = useState(null);
+    const [unit360Loading, setUnit360Loading] = useState(false);
 
     // Active Filters
     const [selectedPropertyFilter, setSelectedPropertyFilter] = useState(null);
@@ -151,6 +158,68 @@ export default function PropertiesPage() {
         }
     };
 
+    const handleSelectUnit = async (unit) => {
+        setSelectedItem({ type: 'UNIT', data: unit });
+        setDrawerEditForm({
+            name: unit.name || '',
+            status: unit.status || 'VACANT',
+            unitGroupId: unit.unitGroupId || '',
+            unitTypeName: unit.unitType?.name || 'Standard',
+            description: unit.description || '',
+        });
+        setIsEditing(false);
+        setUnit360Loading(true);
+
+        const propertyId = unit.propertyId || unit.property?.id;
+        try {
+            const res = await api.get(`/properties/${propertyId}/units/${unit.id}/overview`);
+            setUnit360Data(res.data.data);
+        } catch (err) {
+            console.error('Failed to fetch unit 360 overview:', err);
+            const activeLease = leases.find((l) => l.unitId === unit.id && l.status === 'ACTIVE');
+            setUnit360Data({
+                ...unit,
+                activeLease,
+                leases: leases.filter((l) => l.unitId === unit.id),
+                maintenanceRequests: [],
+                documents: [],
+                metrics: {
+                    totalInvoiced: 0,
+                    totalPaid: 0,
+                    outstandingBalance: 0,
+                    openMaintenanceCount: 0,
+                    totalLeasesCount: 0,
+                    totalDocumentsCount: 0,
+                },
+            });
+        } finally {
+            setUnit360Loading(false);
+        }
+    };
+
+    // Deep link detection via query params
+    useEffect(() => {
+        const tabParam = searchParams.get('tab');
+        const unitIdParam = searchParams.get('unitId');
+        if (tabParam && ['portfolio', 'groups', 'units'].includes(tabParam)) {
+            setActiveTab(tabParam);
+        }
+        if (unitIdParam && properties.length > 0) {
+            const allUnits = properties.flatMap((p) =>
+                (p.units || []).map((u) => ({
+                    ...u,
+                    propertyName: p.name,
+                    propertyId: p.id,
+                    groupName: p.unitGroups?.find((g) => g.id === u.unitGroupId)?.name,
+                }))
+            );
+            const targetUnit = allUnits.find((u) => u.id === unitIdParam);
+            if (targetUnit && selectedItem?.data?.id !== unitIdParam) {
+                handleSelectUnit(targetUnit);
+            }
+        }
+    }, [searchParams, properties]);
+
     // Save Drawer Edits
     const handleSaveEdit = async () => {
         try {
@@ -158,6 +227,11 @@ export default function PropertiesPage() {
                 await api.put(`/properties/${selectedItem.data.id}`, drawerEditForm);
             } else if (selectedItem?.type === 'UNIT_GROUP') {
                 await api.put(`/properties/${selectedItem.data.propertyId}/groups/${selectedItem.data.id}`, drawerEditForm);
+            } else if (selectedItem?.type === 'UNIT') {
+                const propertyId = selectedItem.data.propertyId || selectedItem.data.property?.id;
+                await api.put(`/properties/${propertyId}/units/${selectedItem.data.id}`, drawerEditForm);
+                const res = await api.get(`/properties/${propertyId}/units/${selectedItem.data.id}/overview`);
+                setUnit360Data(res.data.data);
             }
             setIsEditing(false);
             fetchProperties();
@@ -274,53 +348,109 @@ export default function PropertiesPage() {
         }));
     };
 
+    const totalUnitsCount = allUnits.length;
+    const occupiedUnitsCount = allUnits.filter((u) => u.status === 'OCCUPIED').length;
+    const vacantUnitsCount = allUnits.filter((u) => u.status === 'VACANT').length;
+    const occupancyPercentage = totalUnitsCount > 0 ? Math.round((occupiedUnitsCount / totalUnitsCount) * 100) : 0;
+
     const summaryStats = [
         { label: 'Total Properties', value: properties.length },
-        { label: 'Total Units', value: allUnits.length },
-        { label: 'Occupied Units', value: allUnits.filter((u) => u.status === 'OCCUPIED').length },
-        { label: 'Vacant Units', value: allUnits.filter((u) => u.status === 'VACANT').length },
+        { label: 'Total Units', value: totalUnitsCount },
+        { label: 'Occupied Spaces', value: occupiedUnitsCount },
+        { label: 'Vacant Spaces', value: vacantUnitsCount },
     ];
 
     return (
-        <div className="flex h-[calc(100vh-5rem)] overflow-hidden -m-6">
-            {/* MAIN WORKSPACE AREA */}
-            <div className="flex-1 flex flex-col min-w-0 bg-slate-50/50 p-6 overflow-y-auto space-y-6">
 
-                {/* WORKSPACE HEADER + CONTEXTUAL PRIMARY BUTTON */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex h-full w-full overflow-hidden">
+            {/* MAIN WORKSPACE AREA */}
+            <div className="flex-1 flex flex-col min-w-0 bg-slate-50/50 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
+
+
+                {/* LEVEL 1 WORKSPACE HEADER */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h3 className="text-2xl font-bold text-slate-800 tracking-tight">Properties & Space Workspace</h3>
-                        <p className="text-sm text-slate-500">Manage real estate portfolios, unit groups, and rentable units</p>
+                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+                            <Building2 className="w-7 h-7 text-sky-600" />
+                            Properties & Space Workspace
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Manage real estate portfolios, unit groups, rentable space inventory, and 360° operational status.
+                        </p>
                     </div>
 
-                    <button
-                        onClick={() => setShowInlineForm(!showInlineForm)}
-                        className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-sm transition-all shrink-0"
-                    >
-                        {showInlineForm ? <ChevronDown className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                        {showInlineForm
-                            ? 'Cancel'
-                            : activeTab === 'portfolio'
-                                ? '+ Add Property'
-                                : activeTab === 'groups'
-                                    ? '+ Add Unit Group'
-                                    : '+ Add Unit'}
-                    </button>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        <button
+                            onClick={() => {
+                                setActiveTab('groups');
+                                setShowInlineForm(true);
+                            }}
+                            className="flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                        >
+                            <Layers className="w-4 h-4 text-slate-600" />
+                            <span>Add Unit Group</span>
+                        </button>
+
+                        <button
+                            onClick={() => setShowInlineForm(!showInlineForm)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-all shrink-0 cursor-pointer active:scale-95"
+                        >
+                            {showInlineForm ? <ChevronDown className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                            <span>
+                                {showInlineForm
+                                    ? 'Close Creation Form'
+                                    : activeTab === 'portfolio'
+                                        ? 'Add Property'
+                                        : activeTab === 'groups'
+                                            ? 'Add Unit Group'
+                                            : 'Add Rentable Unit'}
+                            </span>
+                        </button>
+
+                    </div>
+                </div>
+
+                {/* TOP OPERATIONAL KPI CARDS */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Properties</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-slate-900">{properties.length}</p>
+                        <span className="text-[11px] text-slate-500 block">Active portfolio assets</span>
+                    </div>
+
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 block">Rentable Units</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-sky-600">{totalUnitsCount}</p>
+                        <span className="text-[11px] text-sky-700 block">Spaces configured</span>
+                    </div>
+
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">Occupancy Health</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-emerald-600">{occupancyPercentage}%</p>
+                        <span className="text-[11px] text-emerald-700 font-semibold block">{occupiedUnitsCount} occupied units</span>
+                    </div>
+
+                    <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 block">Vacant Inventory</span>
+                        <p className="text-xl sm:text-2xl font-extrabold text-amber-600">{vacantUnitsCount}</p>
+                        <span className="text-[11px] text-amber-700 block">Available for leasing</span>
+                    </div>
                 </div>
 
                 {/* CONTEXTUAL INLINE CREATION PANEL */}
                 {showInlineForm && (
                     <form
                         onSubmit={handleCreateSubmit}
-                        className="bg-white border border-sky-200 rounded-2xl p-6 shadow-md space-y-4 animate-in fade-in slide-in-from-top-4 duration-200"
+                        className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-5 animate-in fade-in slide-in-from-top-4 duration-200"
                     >
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-slate-800" />
                                 {activeTab === 'portfolio'
-                                    ? 'Create New Property'
+                                    ? 'Register New Property'
                                     : activeTab === 'groups'
                                         ? 'Create New Unit Group'
-                                        : 'Create New Unit'}
+                                        : 'Create New Rentable Unit'}
                             </h4>
                             <button type="button" onClick={() => setShowInlineForm(false)} className="text-slate-400 hover:text-slate-600">
                                 <X className="w-4 h-4" />
@@ -328,6 +458,7 @@ export default function PropertiesPage() {
                         </div>
 
                         {activeTab === 'portfolio' && (
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Property Name</label>
@@ -434,15 +565,18 @@ export default function PropertiesPage() {
                             </div>
                         )}
 
-                        <div className="flex justify-end gap-3 pt-2">
+                        <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                             <button
                                 type="button"
                                 onClick={() => setShowInlineForm(false)}
-                                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl"
+                                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                             >
                                 Discard
                             </button>
-                            <button type="submit" className="px-5 py-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-sm">
+                            <button
+                                type="submit"
+                                className="px-5 py-2 text-xs font-bold bg-slate-950 hover:bg-slate-800 text-white rounded-xl shadow-md cursor-pointer active:scale-95 transition-all"
+                            >
                                 Save Item
                             </button>
                         </div>
@@ -450,29 +584,34 @@ export default function PropertiesPage() {
                 )}
 
                 {/* LEVEL 2 TAB NAVIGATION */}
-                <div className="border-b border-slate-200 flex gap-8 overflow-x-auto">
+                <div className="flex border-b border-slate-200 gap-4 sm:gap-6 text-xs font-bold overflow-x-auto no-scrollbar whitespace-nowrap">
+
                     <button
                         onClick={() => handleTabSwitch('portfolio')}
-                        className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'portfolio' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                            }`}
+                        className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                            activeTab === 'portfolio' ? 'border-slate-950 text-slate-950' : 'border-transparent text-slate-500 hover:text-slate-900'
+                        }`}
                     >
-                        <Building2 className="w-4 h-4" /> Portfolio Overview
+                        <Building2 className="w-4 h-4" /> Portfolio Overview ({properties.length})
                     </button>
                     <button
                         onClick={() => handleTabSwitch('groups')}
-                        className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'groups' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                            }`}
+                        className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                            activeTab === 'groups' ? 'border-slate-950 text-slate-950' : 'border-transparent text-slate-500 hover:text-slate-900'
+                        }`}
                     >
-                        <Layers className="w-4 h-4" /> Unit Groups
+                        <Layers className="w-4 h-4" /> Unit Groups Architecture ({properties.reduce((acc, p) => acc + (p.unitGroups?.length || 0), 0)})
                     </button>
                     <button
                         onClick={() => handleTabSwitch('units')}
-                        className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-all ${activeTab === 'units' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                            }`}
+                        className={`pb-3 flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                            activeTab === 'units' ? 'border-slate-950 text-slate-950' : 'border-transparent text-slate-500 hover:text-slate-900'
+                        }`}
                     >
-                        <DoorOpen className="w-4 h-4" /> All Units List
+                        <DoorOpen className="w-4 h-4" /> All Rentable Units ({totalUnitsCount})
                     </button>
                 </div>
+
 
                 {/* TAB 1: PORTFOLIO OVERVIEW */}
                 {activeTab === 'portfolio' && (
@@ -487,41 +626,41 @@ export default function PropertiesPage() {
                                 return (
                                     <div
                                         key={property.id}
-                                        className="bg-white rounded-2xl border border-slate-200 hover:border-sky-400 p-5 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between"
+                                        className="bg-white rounded-3xl border border-slate-200/80 hover:border-slate-400 p-6 shadow-xs hover:shadow-md transition-all group flex flex-col justify-between"
                                     >
                                         <div>
                                             <div className="flex items-start justify-between">
-                                                <div className="p-3 bg-sky-50 text-sky-600 rounded-xl group-hover:bg-sky-600 group-hover:text-white transition-colors">
+                                                <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-xs">
                                                     <Building className="w-5 h-5" />
                                                 </div>
                                                 <button
                                                     onClick={(e) => handlePropertySettingsClick(e, property)}
                                                     title="Configure Property Settings"
-                                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                                                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                                                 >
                                                     <Settings className="w-4 h-4" />
                                                 </button>
                                             </div>
 
-                                            <h4 className="text-base font-bold text-slate-800 mt-4 group-hover:text-sky-600 transition-colors">
+                                            <h4 className="text-base font-bold text-slate-900 mt-4">
                                                 {property.name}
                                             </h4>
-                                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                                <MapPin className="w-3.5 h-3.5" /> {property.address}, {property.city}
+                                            <p className="text-xs text-slate-500 flex items-center gap-1 mt-1 font-medium">
+                                                <MapPin className="w-3.5 h-3.5 text-slate-400" /> {property.address}, {property.city}
                                             </p>
 
-                                            <p className="text-xs text-slate-600 my-3 line-clamp-2">
+                                            <p className="text-xs text-slate-600 my-3 line-clamp-2 leading-relaxed">
                                                 {property.description || 'No summary notes.'}
                                             </p>
                                         </div>
 
-                                        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-4">
+                                        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
                                             <button
                                                 onClick={(e) => handleViewPropertyUnitsExplicit(e, property)}
-                                                className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                                                className="flex-1 py-2.5 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                                             >
-                                                <DoorOpen className="w-3.5 h-3.5 text-slate-500" />
-                                                View Units ({unitCount})
+                                                <DoorOpen className="w-3.5 h-3.5 text-slate-600" />
+                                                Units ({unitCount})
                                             </button>
                                             <button
                                                 onClick={(e) => {
@@ -530,10 +669,10 @@ export default function PropertiesPage() {
                                                     setExpandedAccordionId(property.id);
                                                     setActiveTab('groups');
                                                 }}
-                                                className="flex-1 py-2 px-3 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                                                className="flex-1 py-2.5 px-3 bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                             >
-                                                <Layers className="w-3.5 h-3.5 text-sky-600" />
-                                                Unit Groups ({groupCount})
+                                                <Layers className="w-3.5 h-3.5" />
+                                                Groups ({groupCount})
                                             </button>
                                         </div>
                                     </div>
@@ -546,12 +685,13 @@ export default function PropertiesPage() {
                 {/* TAB 2: UNIT GROUPS ACCORDION VIEW */}
                 {activeTab === 'groups' && (
                     <div className="space-y-4">
-                        <div className="flex justify-between items-center bg-sky-50/60 p-4 rounded-xl border border-sky-100">
+                        <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                             <div>
-                                <h4 className="text-sm font-bold text-sky-900">Unit Groups Architecture</h4>
-                                <p className="text-xs text-sky-700 mt-0.5">Tap a group row surface to inspect details in the drawer, or click 'See Units in Group' to filter units.</p>
+                                <h4 className="text-sm font-bold text-slate-900">Unit Groups Architecture</h4>
+                                <p className="text-xs text-slate-500 mt-0.5">Tap a group row to inspect details, or click 'See Units in Group' to filter units.</p>
                             </div>
                         </div>
+
 
                         <div className="space-y-3">
                             {properties.map((property) => {
@@ -738,17 +878,12 @@ export default function PropertiesPage() {
                                                     {section.units.map((unit) => {
                                                         const isSelected = selectedItem?.data?.id === unit.id;
                                                         return (
-                                                            <tr
-                                                                key={unit.id}
-                                                                onClick={() => {
-                                                                    const activeLease = leases.find((l) => l.unitId === unit.id && l.status === 'ACTIVE');
-                                                                    setSelectedItem({ type: 'UNIT', data: unit, activeLease });
-                                                                    setDrawerEditForm(unit);
-                                                                    setIsEditing(false);
-                                                                }}
-                                                                className={`hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-sky-50/50 font-medium' : ''
-                                                                    }`}
-                                                            >
+                                                                <tr
+                                                                    key={unit.id}
+                                                                    onClick={() => handleSelectUnit(unit)}
+                                                                    className={`hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-sky-50/50 font-medium' : ''
+                                                                        }`}
+                                                                >
                                                                 <td className="p-3.5 font-bold text-slate-800">{unit.name}</td>
                                                                 <td className="p-3.5 text-slate-600">{unit.propertyName}</td>
                                                                 <td className="p-3.5">
@@ -786,16 +921,25 @@ export default function PropertiesPage() {
             {/* LEVEL 3: COMPREHENSIVE PERSISTENT DRAWER */}
             <PersistentDrawer
                 selectedItem={selectedItem}
-                onClose={() => setSelectedItem(null)}
+                onClose={() => {
+                    setSelectedItem(null);
+                    setUnit360Data(null);
+                    setSearchParams((prev) => {
+                        prev.delete('unitId');
+                        return prev;
+                    });
+                }}
                 isEditing={isEditing}
                 setIsEditing={setIsEditing}
                 onSave={handleSaveEdit}
                 summaryTitle="Properties Summary"
                 summaryStats={summaryStats}
+                customWidth="w-full sm:w-[480px] lg:w-[480px] xl:w-[520px]"
                 editFormContent={
+
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Name</label>
+                            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Name / Identifier</label>
                             <input
                                 type="text"
                                 value={drawerEditForm.name || ''}
@@ -803,6 +947,47 @@ export default function PropertiesPage() {
                                 className="w-full p-2 border border-slate-200 rounded-lg text-sm"
                             />
                         </div>
+
+                        {selectedItem?.type === 'UNIT' && (
+                            <>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Status</label>
+                                    <select
+                                        value={drawerEditForm.status || 'VACANT'}
+                                        onChange={(e) => setDrawerEditForm({ ...drawerEditForm, status: e.target.value })}
+                                        className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white"
+                                    >
+                                        <option value="VACANT">VACANT</option>
+                                        <option value="OCCUPIED">OCCUPIED</option>
+                                        <option value="UNDER_MAINTENANCE">UNDER_MAINTENANCE</option>
+                                        <option value="RESERVED">RESERVED</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Unit Group</label>
+                                    <select
+                                        value={drawerEditForm.unitGroupId || ''}
+                                        onChange={(e) => setDrawerEditForm({ ...drawerEditForm, unitGroupId: e.target.value })}
+                                        className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white"
+                                    >
+                                        <option value="">(None / Unassigned)</option>
+                                        {(properties.find((p) => p.id === (selectedItem.data.propertyId || selectedItem.data.property?.id))?.unitGroups || []).map((g) => (
+                                            <option key={g.id} value={g.id}>{g.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Unit Type</label>
+                                    <input
+                                        type="text"
+                                        value={drawerEditForm.unitTypeName || ''}
+                                        onChange={(e) => setDrawerEditForm({ ...drawerEditForm, unitTypeName: e.target.value })}
+                                        placeholder="e.g. 2BHK Deluxe, Studio"
+                                        className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+                                    />
+                                </div>
+                            </>
+                        )}
 
                         {(selectedItem?.type === 'PROPERTY' || selectedItem?.type === 'SETTINGS') && (
                             <>
@@ -1005,87 +1190,13 @@ export default function PropertiesPage() {
                     </div>
                 )}
 
-                {/* VIEW MODE DETAILS: UNIT (WITH WORKING QUICK VIEWS & NAVIGATION) */}
+                {/* VIEW MODE DETAILS: UNIT (360 OPERATIONAL HUB) */}
                 {selectedItem?.type === 'UNIT' && (
-                    <div className="space-y-4">
-                        {/* Unit Identity Header */}
-                        <div className="p-3 bg-sky-50/50 border border-sky-100 rounded-xl space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 block">Unit Overview</span>
-                            <p className="text-sm font-bold text-slate-800">{selectedItem.data.name}</p>
-                            <p className="text-xs text-slate-500">
-                                {selectedItem.data.propertyName} {selectedItem.data.unitGroup ? `→ ${selectedItem.data.unitGroup.name}` : ''}
-                            </p>
-                        </div>
-
-                        {/* Active Lease & Tenant Details Card */}
-                        {selectedItem.activeLease ? (
-                            <div className="p-4 bg-emerald-50/40 border border-emerald-100 rounded-xl space-y-3">
-                                <div className="flex justify-between items-center border-b border-emerald-100/60 pb-2">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Active Lease Contract</span>
-                                    <span className="px-2 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-800 rounded-full uppercase">
-                                        Active
-                                    </span>
-                                </div>
-
-                                {/* QUICK VIEW & NAVIGATION TO TENANT DIRECTORY */}
-                                <div 
-                                    onClick={() => {
-                                        const tenant = selectedItem.activeLease.tenant;
-                                        const query = tenant?.email || tenant?.businessName || tenant?.firstName;
-                                        navigate(`/tenants?tab=tenants&search=${encodeURIComponent(query)}`);
-                                    }}
-                                    className="group p-2.5 bg-white border border-emerald-200/60 rounded-lg hover:border-sky-500 hover:shadow-sm cursor-pointer transition-all"
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-semibold text-slate-400 uppercase">Current Tenant</span>
-                                        <span className="text-[10px] font-bold text-sky-600 group-hover:underline flex items-center gap-1">
-                                            Go to Directory <ExternalLink className="w-3 h-3" />
-                                        </span>
-                                    </div>
-                                    <p className="text-xs font-bold text-slate-800 mt-1">
-                                        {selectedItem.activeLease.tenant?.tenantType === 'BUSINESS'
-                                            ? selectedItem.activeLease.tenant?.businessName
-                                            : `${selectedItem.activeLease.tenant?.firstName || ''} ${selectedItem.activeLease.tenant?.lastName || ''}`}
-                                    </p>
-                                    <p className="text-[11px] text-slate-500">{selectedItem.activeLease.tenant?.email}</p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2 pt-1">
-                                    <div>
-                                        <span className="text-[10px] font-semibold text-slate-400 uppercase block">Monthly Rent</span>
-                                        <p className="text-xs font-bold text-emerald-600">${Number(selectedItem.activeLease.rentAmount).toLocaleString()}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-[10px] font-semibold text-slate-400 uppercase block">Deposit</span>
-                                        <p className="text-xs font-bold text-slate-700">${Number(selectedItem.activeLease.securityDeposit || 0).toLocaleString()}</p>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <span className="text-[10px] font-semibold text-slate-400 uppercase block">Contract Period</span>
-                                    <p className="text-[11px] font-medium text-slate-700">
-                                        {new Date(selectedItem.activeLease.startDate).toLocaleDateString()} → {new Date(selectedItem.activeLease.endDate).toLocaleDateString()}
-                                    </p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl text-center space-y-2">
-                                <p className="text-xs font-bold text-amber-800">No Active Lease Contract</p>
-                                <p className="text-[11px] text-amber-600">This unit is currently vacant.</p>
-                            </div>
-                        )}
-
-                        {/* ACTION BUTTON: MOVE TO LEASES SECTION TO SEE ALL HISTORICAL LEASES FOR THIS UNIT */}
-                        <button
-                            onClick={() => {
-                                navigate(`/tenants?tab=leases&search=${encodeURIComponent(selectedItem.data.name)}`);
-                            }}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
-                        >
-                            <span>View Lease History for {selectedItem.data.name}</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
+                    <Unit360Drawer
+                        unitOverview={unit360Data}
+                        loading={unit360Loading}
+                        onRefresh={() => handleSelectUnit(selectedItem.data)}
+                    />
                 )}
             </PersistentDrawer>
 

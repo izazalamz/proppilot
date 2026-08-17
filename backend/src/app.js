@@ -3,6 +3,11 @@ import cors from 'cors';
 import authRoutes from './routes/auth.routes.js';
 import propertyRoutes from './routes/property.routes.js';
 import tenantRoutes from './routes/tenant.routes.js';
+import financeRoutes from './routes/finance.routes.js';
+import maintenanceRoutes from './routes/maintenance.routes.js';
+import documentRoutes from './routes/document.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
+import portalRoutes from './routes/portal.routes.js';
 
 const app = express();
 
@@ -28,10 +33,18 @@ app.get('/api/health', (req, res) => {
 
 // Register API Routes
 app.use('/api/auth', authRoutes);
-// Property API Routes
 app.use('/api/properties', propertyRoutes);
-// Tenant API Routes
 app.use('/api/tenants', tenantRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/portal', portalRoutes);
+
+
+
+
+
 
 // Global 404 Handler
 app.use((req, res) => {

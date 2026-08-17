@@ -43,7 +43,7 @@ export const authenticate = async (req, res, next) => {
 /**
  * Ensure user has access to the requested workspace (Account)
  */
-export const requireWorkspace = (allowedRoles = []) => {
+export const requireWorkspace = (allowedRoles = ['OWNER', 'ADMIN', 'MANAGER', 'STAFF']) => {
     return async (req, res, next) => {
         try {
             const accountId = req.headers['x-account-id'] || req.accountId;
@@ -71,7 +71,9 @@ export const requireWorkspace = (allowedRoles = []) => {
 
             // Check roles if specified
             if (allowedRoles.length > 0 && !allowedRoles.includes(membership.role)) {
-                return res.status(403).json({ error: 'You do not have permission to perform this action.' });
+                return res.status(403).json({
+                    error: `Access denied. Your role in this workspace is '${membership.role}'. Managerial permissions (${allowedRoles.join(', ')}) required.`,
+                });
             }
 
             req.membership = membership;
@@ -82,4 +84,4 @@ export const requireWorkspace = (allowedRoles = []) => {
             next(error);
         }
     };
-};
+};
