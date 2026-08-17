@@ -1,0 +1,30 @@
+{
+  "name": "proppilot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Next-Generation Multi-Tenant Property Management SaaS Platform",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "seed": "npm --prefix backend run seed",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:studio": "npm --prefix backend run db:studio",
+    "db:generate": "npm --prefix backend run db:generate",
+    "db:reset": "npm --prefix backend run db:reset"
+  },
+  "keywords": [
+    "property-management",
+    "saas",
+    "multi-tenant",
+    "real-estate",
+    "react",
+    "nodejs",
+    "prisma",
+    "postgresql"
+  ],
+  "author": "PropPilot Team",
+  "license": "MIT"
+}
